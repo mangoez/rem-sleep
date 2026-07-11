@@ -45,8 +45,8 @@ buttons still work while you are messing around locally.
 
 The current Kokoro setup is:
 
-- `mod`: `am_puck`, slowed down into greasy reddit man mode
-- `pwincess`: `af_heart`, sped up and pitch shifted into falsetto princess mode
+- `mod`: `am_puck`, normal speed and pitch with a more nasal greasy reddit man read
+- `pwincess`: `af_heart`, slowed down with a tiny pitch lift into ditzy young girl mode
 
 Install Kokoro first:
 

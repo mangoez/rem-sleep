@@ -14,12 +14,12 @@ VOICE = {
     "pwincess": os.environ.get("KOKORO_PWINCESS_VOICE", "af_heart"),
 }
 SPEED = {
-    "mod": float(os.environ.get("KOKORO_MOD_SPEED", "0.88")),
-    "pwincess": float(os.environ.get("KOKORO_PWINCESS_SPEED", "1.08")),
+    "mod": float(os.environ.get("KOKORO_MOD_SPEED", "1.0")),
+    "pwincess": float(os.environ.get("KOKORO_PWINCESS_SPEED", "0.96")),
 }
 PITCH = {
     "mod": float(os.environ.get("KOKORO_MOD_PITCH", "1.0")),
-    "pwincess": float(os.environ.get("KOKORO_PWINCESS_PITCH", "1.32")),
+    "pwincess": float(os.environ.get("KOKORO_PWINCESS_PITCH", "1.08")),
 }
 
 
