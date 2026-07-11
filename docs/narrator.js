@@ -3,7 +3,7 @@
 /**
  * Narrator reads a story's lines aloud, one line per utterance.
  *
- *   Narrator.play(lines, { onLine(i), onEnd() })
+ *   Narrator.play(lines, { storyId, onLine(i), onEnd() })
  *     Starts narrating from line 0. If already narrating, the old run is
  *     silently replaced. `lines` is an array of { text, speaker? } where
  *     speaker is "mod" (default) or "pwincess". onLine fires as each line
@@ -14,23 +14,26 @@
  *                        no op unless paused.
  *   Narrator.stop()    back to idle. No op when idle.
  *
- * Everything else, browser voice selection, speaker mapping, and queue
- * cancel races, is this module's business alone.
+ * Everything else, Kokoro audio lookup, browser voice fallback, speaker mapping,
+ * and queue cancel races, is this module's business alone.
  */
 const Narrator = (() => {
-  // The cast maps each speaker to a voice shape. 1.0 means engine normal.
-  // Prefer named human voices when the browser exposes them. Pitch/rate stay
-  // near natural so the cringe comes from the writing, not robotic delivery.
+  const AUDIO_EXT = "wav";
+
+  // The cast maps each speaker to both a generated audio shape and a fallback
+  // browser voice shape. 1.0 means engine normal.
   const VOICES = {
     mod: {
       pitch: 0.95,
-      rate: 0.95,
+      rate: 0.9,
+      audioRate: 0.94,
       lang: "en-US",
       voiceHints: ["Daniel", "Alex", "Microsoft Guy", "Microsoft David", "Microsoft Mark", "Google UK English Male"],
     },
     pwincess: {
-      pitch: 1.12,
-      rate: 1.0,
+      pitch: 1.35,
+      rate: 1.08,
+      audioRate: 1.04,
       lang: "en-US",
       voiceHints: ["Samantha", "Victoria", "Karen", "Tessa", "Microsoft Jenny", "Microsoft Zira", "Google US English"],
     },
@@ -41,6 +44,8 @@ const Narrator = (() => {
   let index = 0;
   let callbacks = {};
   let webVoices = [];
+  let currentAudio = null;
+  let activeStoryId = "";
   // Bumped on every cancel. Active utterance callbacks compare against it
   // so a cancelled run can never advance the queue of the run that replaced it.
   let session = 0;
@@ -86,6 +91,11 @@ const Narrator = (() => {
   }
 
   function speakWeb(text, voice, done) {
+    if (!window.speechSynthesis) {
+      done();
+      return;
+    }
+
     const u = new window.SpeechSynthesisUtterance(text);
     u.voice = pickWebVoice(voice);
     u.lang = voice.lang;
@@ -96,13 +106,37 @@ const Narrator = (() => {
     window.speechSynthesis.speak(u);
   }
 
+  function audioPath(storyId, lineIndex, speaker) {
+    if (!storyId) return "";
+    const file = `${String(lineIndex + 1).padStart(3, "0")}-${speaker}.${AUDIO_EXT}`;
+    return `audio/${storyId}/${file}`;
+  }
+
+  function speakAudio(src, voice, done, fallback) {
+    const audio = new Audio(src);
+    currentAudio = audio;
+    audio.preload = "auto";
+    audio.playbackRate = voice.audioRate;
+    audio.onended = done;
+    audio.onerror = () => {
+      if (currentAudio === audio) currentAudio = null;
+      fallback();
+    };
+    audio.play().catch(() => {
+      if (currentAudio === audio) currentAudio = null;
+      fallback();
+    });
+  }
+
   function speakCurrent() {
     const mySession = session;
     const line = lines[index];
-    const voice = VOICES[line.speaker] || VOICES.mod;
+    const speaker = line.speaker || "mod";
+    const voice = VOICES[speaker] || VOICES.mod;
     if (callbacks.onLine) callbacks.onLine(index);
     const done = () => {
       if (session !== mySession) return; // this run was cancelled meanwhile
+      currentAudio = null;
       index += 1;
       if (index < lines.length) {
         speakCurrent();
@@ -111,12 +145,23 @@ const Narrator = (() => {
         if (callbacks.onEnd) callbacks.onEnd();
       }
     };
-    speakWeb(line.text, voice, done);
+    const fallback = () => {
+      if (session !== mySession) return;
+      speakWeb(line.text, voice, done);
+    };
+    const src = audioPath(activeStoryId, index, speaker);
+    if (src) speakAudio(src, voice, done, fallback);
+    else fallback();
   }
 
   function cancelEngine() {
     session += 1;
-    window.speechSynthesis.cancel();
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.src = "";
+      currentAudio = null;
+    }
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
   }
 
   return {
@@ -125,6 +170,7 @@ const Narrator = (() => {
       lines = newLines || [];
       index = 0;
       callbacks = cbs || {};
+      activeStoryId = callbacks.storyId || "";
       if (!lines.length) { // empty story: end immediately rather than error
         state = "idle";
         if (callbacks.onEnd) callbacks.onEnd();
@@ -139,14 +185,22 @@ const Narrator = (() => {
     // unreliable). Line start granularity is fine at bedtime.
     pause() {
       if (state !== "playing") return;
-      cancelEngine();
+      if (currentAudio) {
+        currentAudio.pause();
+      } else {
+        cancelEngine();
+      }
       state = "paused";
     },
 
     resume() {
       if (state !== "paused") return;
       state = "playing";
-      speakCurrent();
+      if (currentAudio) {
+        currentAudio.play().catch(() => speakCurrent());
+      } else {
+        speakCurrent();
+      }
     },
 
     stop() {
@@ -155,6 +209,7 @@ const Narrator = (() => {
       state = "idle";
       lines = [];
       index = 0;
+      activeStoryId = "";
       callbacks = {};
     },
   };

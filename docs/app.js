@@ -132,6 +132,7 @@ function renderStory(story) {
       Narrator.resume();
     } else {
       Narrator.play(story.lines, {
+        storyId: story.id,
         onLine: (i) => {
           setState("playing", `line ${i + 1} of ${story.lines.length}`);
           highlight(i);

@@ -13,8 +13,9 @@ https://mangoez.github.io/REM-sleep/
 
 - `docs/` is the actual web app.
 - `docs/stories/` has the story data.
-- `docs/narrator.js` handles play, pause, resume, stop, and voice picking.
+- `docs/narrator.js` handles play, pause, resume, stop, Kokoro audio, and fallback voice picking.
 - `scripts/check-stories.js` checks that the story files are still valid.
+- `scripts/generate-kokoro-audio.js` makes the voice files for the site.
 
 ## Run it
 
@@ -37,15 +38,45 @@ the device, or our settings.
 
 ## Voices
 
-The browser version uses `speechSynthesis`.
+The app uses generated Kokoro audio when the files exist in `docs/audio/`.
 
-The app asks the browser for installed voices and tries to pick:
+If those files are missing, it falls back to browser `speechSynthesis` so the
+buttons still work while you are messing around locally.
 
-- a human-sounding man voice for `mod`
-- a human-sounding girl voice for `pwincess`
+The current Kokoro setup is:
 
-If the browser does not expose a good match, it falls back to whatever default
-voice the browser gives us.
+- `mod`: `am_puck`, slowed down into greasy reddit man mode
+- `pwincess`: `af_heart`, sped up and pitch shifted into falsetto princess mode
+
+Install Kokoro first:
+
+```sh
+python3.11 -m venv .venv-kokoro
+.venv-kokoro/bin/python -m pip install "kokoro>=0.9.4" soundfile
+```
+
+Then generate the audio:
+
+```sh
+node scripts/generate-kokoro-audio.js
+```
+
+Run it again with `--force` if you changed a story line and want to overwrite
+old audio:
+
+```sh
+node scripts/generate-kokoro-audio.js --force
+```
+
+The Kokoro model cache goes into `.kokoro-cache/`, which is ignored. The
+generated story audio goes into `docs/audio/`, which should be committed for
+GitHub Pages.
+
+You can mess with the casting without editing code:
+
+```sh
+KOKORO_MOD_VOICE=am_eric KOKORO_PWINCESS_VOICE=af_bella node scripts/generate-kokoro-audio.js --force
+```
 
 The story text is spoken as written. The cringe stays.
 
